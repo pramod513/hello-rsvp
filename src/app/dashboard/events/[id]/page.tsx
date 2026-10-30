@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { GuestManager } from "@/components/GuestManager";
 import { getHostEvent } from "@/lib/data";
-import { emailEnabled } from "@/lib/email";
 import { formatWhenOneLine } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
 import { createClient } from "@/lib/supabase/server";
@@ -56,7 +55,6 @@ export default async function EventGuestsPage({
         }}
         guests={guests}
         baseUrl={siteUrl()}
-        emailEnabled={emailEnabled()}
         whenText={formatWhenOneLine(event)}
       />
     </>

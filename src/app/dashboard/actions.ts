@@ -2,11 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { emailEnabled, inviteEmailHtml, sendEmailBatch, type OutgoingEmail } from "@/lib/email";
-import { firstName, formatWhenOneLine, isValidTimeZone } from "@/lib/format";
+import { isValidTimeZone } from "@/lib/format";
 import { makeEventSlug, makeGuestToken } from "@/lib/ids";
-import { DEFAULT_INVITE_MESSAGE, DEFAULT_REMINDER_MESSAGE, fillMessage, inviteLink } from "@/lib/share";
-import { siteUrl } from "@/lib/site";
+import { DEFAULT_INVITE_MESSAGE, DEFAULT_REMINDER_MESSAGE } from "@/lib/share";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { IMAGE_BUCKET, supabaseUrl } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -19,18 +17,7 @@ import {
   type GuestRow,
   type RsvpStatus,
 } from "@/lib/types";
-import {
-  checkbox,
-  integer,
-  isDate,
-  isEmail,
-  isPhone,
-  isTime,
-  normalizeUrl,
-  optionalText,
-  text,
-  type GuestInput,
-} from "@/lib/validation";
+import { checkbox, integer, isDate, isTime, normalizeUrl, optionalText, text } from "@/lib/validation";
 
 const MAX_GUESTS_PER_EVENT = 2000;
 const MAX_GIFTS_PER_EVENT = 200;
@@ -248,51 +235,46 @@ export async function saveMessages(
 // Guests
 // ---------------------------------------------------------------------------
 
-function cleanGuest(input: GuestInput): { ok: true; guest: GuestInput } | { ok: false; error: string } {
-  const name = (input.name ?? "").trim().slice(0, 100);
-  if (!name) return { ok: false, error: "Every guest needs a name." };
-  const email = input.email?.trim().toLowerCase() || null;
-  if (email && !isEmail(email)) return { ok: false, error: `"${email}" doesn't look like an email address.` };
-  const phone = input.phone?.trim() || null;
-  if (phone && !isPhone(phone)) return { ok: false, error: `"${phone}" doesn't look like a phone number.` };
-  return { ok: true, guest: { name, email, phone } };
+function cleanName(input: unknown): string {
+  return typeof input === "string" ? input.replace(/\s+/g, " ").trim().slice(0, 100) : "";
 }
 
-export async function addGuests(eventId: string, input: GuestInput[]): Promise<ActionResult> {
+/** Same person, same spelling: "sofia  martinez" matches "Sofia Martinez". */
+function nameKey(name: string): string {
+  return name.toLowerCase().normalize("NFKC").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Adds guests by name only. Hosts send each guest their private link from their
+ * own WhatsApp, Messages or email app, so no phone numbers or emails are stored.
+ */
+export async function addGuests(eventId: string, names: string[]): Promise<ActionResult> {
   const { supabase } = await requireHost();
-  if (!Array.isArray(input) || input.length === 0) return fail("Add at least one guest.");
-  if (input.length > 500) return fail("Add up to 500 guests at a time.");
+  if (!Array.isArray(names) || names.length === 0) return fail("Add at least one guest.");
+  if (names.length > 500) return fail("Add up to 500 guests at a time.");
 
-  const cleaned: GuestInput[] = [];
-  for (const raw of input) {
-    const result = cleanGuest(raw);
-    if (!result.ok) return fail(result.error);
-    cleaned.push(result.guest);
-  }
+  const cleaned = names.map(cleanName);
+  if (cleaned.some((n) => !n)) return fail("Every guest needs a name.");
 
-  const { data: existing, error: readError } = await supabase
-    .from("guests")
-    .select("email, phone")
-    .eq("event_id", eventId);
+  const { data: existing, error: readError } = await supabase.from("guests").select("name").eq("event_id", eventId);
   if (readError) return dbFail(readError);
-  const rows = (existing ?? []) as Pick<GuestRow, "email" | "phone">[];
+  const rows = (existing ?? []) as Pick<GuestRow, "name">[];
   if (rows.length + cleaned.length > MAX_GUESTS_PER_EVENT) {
     return fail(`An event can have up to ${MAX_GUESTS_PER_EVENT} guests.`);
   }
 
-  const seenEmails = new Set(rows.map((r) => r.email).filter(Boolean));
-  const seenPhones = new Set(rows.map((r) => (r.phone ?? "").replace(/\D/g, "")).filter(Boolean));
+  // Each name gets its own private link, so the same name twice would be confusing.
+  const seen = new Set(rows.map((r) => nameKey(r.name)));
   const toInsert = [];
-  let duplicates = 0;
-  for (const g of cleaned) {
-    const phoneKey = (g.phone ?? "").replace(/\D/g, "");
-    if ((g.email && seenEmails.has(g.email)) || (phoneKey && seenPhones.has(phoneKey))) {
-      duplicates++;
+  const duplicates: string[] = [];
+  for (const name of cleaned) {
+    const key = nameKey(name);
+    if (seen.has(key)) {
+      duplicates.push(name);
       continue;
     }
-    if (g.email) seenEmails.add(g.email);
-    if (phoneKey) seenPhones.add(phoneKey);
-    toInsert.push({ event_id: eventId, name: g.name, email: g.email, phone: g.phone, token: makeGuestToken() });
+    seen.add(key);
+    toInsert.push({ event_id: eventId, name, token: makeGuestToken() });
   }
 
   if (toInsert.length > 0) {
@@ -303,24 +285,28 @@ export async function addGuests(eventId: string, input: GuestInput[]): Promise<A
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   const added = toInsert.length;
   const parts = [`Added ${added} ${added === 1 ? "guest" : "guests"}.`];
-  if (duplicates) parts.push(`Skipped ${duplicates} already on the list.`);
+  if (duplicates.length) {
+    parts.push(
+      `${duplicates.slice(0, 3).join(", ")}${duplicates.length > 3 ? " and others" : ""} ${duplicates.length === 1 ? "is" : "are"} already on the list. To add two people with the same name, add a detail, like "Sam Lee (Dallas)".`,
+    );
+  }
   return { ok: true, message: parts.join(" ") };
 }
 
 export async function updateGuest(
   guestId: string,
-  input: GuestInput & { status: RsvpStatus; party_size: number },
+  input: { name: string; status: RsvpStatus; party_size: number },
 ): Promise<ActionResult> {
   const { supabase } = await requireHost();
-  const result = cleanGuest(input);
-  if (!result.ok) return fail(result.error);
+  const name = cleanName(input.name);
+  if (!name) return fail("Every guest needs a name.");
   if (!["pending", "yes", "no", "maybe"].includes(input.status)) return fail("Choose a reply.");
   const partySize = input.status === "no" ? 0 : Math.min(20, Math.max(1, Math.round(Number(input.party_size) || 1)));
 
   const { data, error } = await supabase
     .from("guests")
     .update({
-      ...result.guest,
+      name,
       status: input.status,
       party_size: partySize,
       responded_at: input.status === "pending" ? null : new Date().toISOString(),
@@ -342,6 +328,16 @@ export async function deleteGuest(guestId: string): Promise<ActionResult> {
   return { ok: true, message: "Guest removed." };
 }
 
+/** Deletes every guest and reply for one event. The invite itself stays. */
+export async function deleteAllGuests(eventId: string): Promise<ActionResult> {
+  const { supabase } = await requireHost();
+  const { data, error } = await supabase.from("guests").delete().eq("event_id", eventId).select("id");
+  if (error) return dbFail(error);
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  const removed = (data ?? []).length;
+  return { ok: true, message: `Deleted ${removed} ${removed === 1 ? "guest" : "guests"} and their replies.` };
+}
+
 export async function markInvited(
   guestIds: string[],
   channel: "whatsapp" | "sms" | "email" | "link",
@@ -356,69 +352,6 @@ export async function markInvited(
   const eventId = (data as { event_id: string }[] | null)?.[0]?.event_id;
   if (eventId) revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
-}
-
-/** Emails invites or reminders to the chosen guests through Resend. */
-export async function sendEmailInvites(
-  eventId: string,
-  guestIds: string[],
-  kind: "invite" | "reminder",
-): Promise<ActionResult> {
-  const { supabase, user } = await requireHost();
-  if (!emailEnabled()) return fail("Email sending isn't set up yet. Add RESEND_API_KEY and EMAIL_FROM to the server settings.");
-  if (guestIds.length === 0) return fail("No guests with an email address to send to.");
-
-  const { data: event, error: eventError } = await supabase.from("events").select("*").eq("id", eventId).maybeSingle();
-  if (eventError) return dbFail(eventError);
-  if (!event) return fail("We couldn't find that event.");
-  const ev = event as EventRow;
-
-  const { data: guestRows, error: guestError } = await supabase
-    .from("guests")
-    .select("id, name, email, token")
-    .eq("event_id", eventId)
-    .in("id", guestIds.slice(0, 500))
-    .not("email", "is", null);
-  if (guestError) return dbFail(guestError);
-  const guests = (guestRows ?? []) as Pick<GuestRow, "id" | "name" | "email" | "token">[];
-  if (guests.length === 0) return fail("None of those guests have an email address.");
-
-  const base = siteUrl();
-  const when = formatWhenOneLine(ev);
-  const where = [ev.location_name, ev.location_address].filter(Boolean).join(", ") || (ev.online_url ? "Online" : "");
-  const template = kind === "reminder" ? ev.reminder_message || DEFAULT_REMINDER_MESSAGE : ev.invite_message || DEFAULT_INVITE_MESSAGE;
-  const subject = kind === "reminder" ? `Reminder: ${ev.title}` : `You're invited: ${ev.title}`;
-
-  const emails: OutgoingEmail[] = guests.map((g) => {
-    const link = inviteLink(base, ev.slug, g.token);
-    const message = fillMessage(template, { name: firstName(g.name), event: ev.title, date: when, link });
-    return {
-      to: g.email as string,
-      subject,
-      text: message,
-      replyTo: user.email,
-      html: inviteEmailHtml({
-        message: message.replace(link, "").trim(),
-        title: ev.title,
-        when,
-        where,
-        hostName: ev.host_name,
-        link,
-        coverImageUrl: ev.cover_image_url,
-        buttonLabel: kind === "reminder" ? "Reply now" : "See the invite and reply",
-      }),
-    };
-  });
-
-  const result = await sendEmailBatch(emails);
-  if (!result.ok) return fail(result.error);
-
-  const now = new Date().toISOString();
-  const patch = kind === "reminder" ? { reminded_at: now, invite_channel: "email" } : { invited_at: now, invite_channel: "email" };
-  await supabase.from("guests").update(patch).in("id", guests.map((g) => g.id));
-
-  revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: `Sent ${result.sent} ${result.sent === 1 ? "email" : "emails"}.` };
 }
 
 // ---------------------------------------------------------------------------

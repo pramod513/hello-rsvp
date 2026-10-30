@@ -418,7 +418,7 @@ export function EventForm({
               <span>
                 <strong>Show who&rsquo;s coming</strong>
                 <span className="hint" style={{ display: "block" }}>
-                  Guests see first names of people who said yes. Contact details stay private.
+                  Guests see the first names of people who said yes, and nothing else.
                 </span>
               </span>
             </label>

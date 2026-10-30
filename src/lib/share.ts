@@ -1,5 +1,7 @@
 // Builds the share links hosts use to send invites from their own phone or
-// computer. Nothing here sends a message by itself, so it costs nothing to run.
+// computer. The links never include a phone number or email address: the host
+// picks the contact inside WhatsApp, Messages or their email app, so Hello RSVP
+// never sees or stores guests' contact details.
 
 export const DEFAULT_INVITE_MESSAGE =
   "Hi {name}! You're invited to {event} on {date}. Tap the link to see the details and let us know if you can make it: {link}";
@@ -32,34 +34,19 @@ export function fillMessage(
   return text;
 }
 
-/** Digits only, with a leading country code if the host typed one. "+1 (312) 555-0182" -> "13125550182" */
-export function phoneDigits(phone: string | null | undefined): string {
-  if (!phone) return "";
-  let digits = phone.replace(/[^\d]/g, "");
-  if (phone.trim().startsWith("00")) digits = digits.replace(/^00/, "");
-  return digits;
+/** Opens WhatsApp with the message written; the host picks the chat. */
+export function whatsappUrl(text: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 
-/** WhatsApp needs the full international number. Fewer than 10 digits almost always means it's missing. */
-export function looksInternational(phone: string | null | undefined): boolean {
-  const trimmed = (phone ?? "").trim();
-  return trimmed.startsWith("+") || trimmed.startsWith("00") || phoneDigits(trimmed).length >= 11;
+/** Opens the phone's Messages app with the message written; the host picks the contact. Works on iOS and Android. */
+export function smsUrl(text: string): string {
+  return `sms:?&body=${encodeURIComponent(text)}`;
 }
 
-export function whatsappUrl(phone: string | null | undefined, text: string): string {
-  const digits = phoneDigits(phone);
-  const encoded = encodeURIComponent(text);
-  return digits ? `https://wa.me/${digits}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
-}
-
-/** `sms:<number>?&body=` works on both iOS and Android. */
-export function smsUrl(phone: string | null | undefined, text: string): string {
-  const cleaned = (phone ?? "").replace(/[^\d+]/g, "");
-  return `sms:${cleaned}?&body=${encodeURIComponent(text)}`;
-}
-
-export function mailtoUrl(email: string | null | undefined, subject: string, body: string): string {
-  return `mailto:${encodeURIComponent(email ?? "")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+/** Opens the host's email app with the subject and message written; the host picks who it goes to. */
+export function mailtoUrl(subject: string, body: string): string {
+  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 /** Google Calendar "add event" link using the event's own time zone. */

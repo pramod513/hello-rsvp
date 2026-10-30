@@ -69,20 +69,18 @@ export function RsvpForm({
         </div>
       </fieldset>
 
-      <div className="field" style={{ marginTop: 20 }}>
-        <label className="label" htmlFor="rsvp-name">
-          Your name
-        </label>
-        <input
-          id="rsvp-name"
-          name="name"
-          className="input"
-          defaultValue={initialName}
-          maxLength={100}
-          autoComplete="name"
-          required
-        />
-      </div>
+      {isKnownGuest ? (
+        <p className="notice" style={{ marginTop: 20 }}>
+          Replying as <strong>{initialName}</strong>. Not you? Ask the host for your own link.
+        </p>
+      ) : (
+        <div className="field" style={{ marginTop: 20 }}>
+          <label className="label" htmlFor="rsvp-name">
+            Your first and last name
+          </label>
+          <input id="rsvp-name" name="name" className="input" maxLength={100} autoComplete="name" required />
+        </div>
+      )}
 
       {allowPlusOnes && status !== "no" ? (
         <div className="field" style={{ marginTop: 18 }}>
@@ -116,24 +114,6 @@ export function RsvpForm({
           <input id="rsvp-answer" name="answer" className="input" defaultValue={initialAnswer} maxLength={1000} />
         </div>
       ) : null}
-
-      {!isKnownGuest ? (
-        <div className="field-row" style={{ marginTop: 18 }}>
-          <div className="field">
-            <label className="label" htmlFor="rsvp-email">
-              Email <span className="label-optional">(optional)</span>
-            </label>
-            <input id="rsvp-email" name="email" type="email" className="input" maxLength={254} autoComplete="email" />
-          </div>
-          <div className="field">
-            <label className="label" htmlFor="rsvp-phone">
-              Mobile <span className="label-optional">(optional)</span>
-            </label>
-            <input id="rsvp-phone" name="phone" type="tel" className="input" maxLength={32} autoComplete="tel" />
-          </div>
-        </div>
-      ) : null}
-      {!isKnownGuest ? <p className="hint" style={{ marginTop: 6 }}>So your host can reach you if plans change.</p> : null}
 
       <div className="field" style={{ marginTop: 18 }}>
         <label className="label" htmlFor="rsvp-note">

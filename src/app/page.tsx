@@ -60,7 +60,15 @@ const FAQS = [
   },
   {
     q: "Will guests see each other's names?",
-    a: "Only if you turn on the guest list for that event. Then guests see the first names of people who are coming. Contact details are never shown to guests.",
+    a: "Only if you turn on the guest list for that event. Then guests see the first names of people who are coming, and nothing else.",
+  },
+  {
+    q: "Do you store my guests' phone numbers or emails?",
+    a: "No. You add guests by name only. When you send, WhatsApp, Messages or your email app opens with the invite written, and you pick the contact there. Hello RSVP never sees their number or address.",
+  },
+  {
+    q: "Can I delete my data?",
+    a: "Any time. Delete a single guest, a whole guest list, an event, or your entire account from your dashboard. Deleting is immediate and permanent.",
   },
   {
     q: "Does it work outside the US?",
@@ -155,7 +163,7 @@ export default function HomePage() {
                   </span>
                   <div>
                     <strong>WhatsApp</strong>
-                    <span>Send each guest their own link from your phone, or post one link in a group.</span>
+                    <span>Opens WhatsApp with each guest&rsquo;s private link in the message. You pick the chat and tap send.</span>
                   </div>
                 </li>
                 <li>
@@ -164,7 +172,7 @@ export default function HomePage() {
                   </span>
                   <div>
                     <strong>Text message</strong>
-                    <span>Open a ready-written text with the guest&rsquo;s link already filled in.</span>
+                    <span>Opens your Messages app with the invite written. No phone numbers are saved in Hello RSVP.</span>
                   </div>
                 </li>
                 <li>
@@ -173,7 +181,7 @@ export default function HomePage() {
                   </span>
                   <div>
                     <strong>Email</strong>
-                    <span>Send a designed email invite to your whole list from the dashboard.</span>
+                    <span>Opens your own email app with the invite written. You choose who gets it.</span>
                   </div>
                 </li>
                 <li>

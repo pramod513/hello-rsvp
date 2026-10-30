@@ -8,7 +8,7 @@ import { makeGuestToken } from "@/lib/ids";
 import { getGuestByToken, getPublicEvent, guestCookieName, isValidToken } from "@/lib/public-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ActionResult } from "@/lib/types";
-import { integer, isEmail, isPhone, optionalText, text } from "@/lib/validation";
+import { integer, optionalText, text } from "@/lib/validation";
 
 const MAX_GUESTS_PER_EVENT = 2000;
 const YEAR_IN_SECONDS = 60 * 60 * 24 * 365;
@@ -49,13 +49,7 @@ export async function submitRsvp(_prev: ActionResult | null, form: FormData): Pr
   const status = text(form, "status", 10);
   if (status !== "yes" && status !== "no" && status !== "maybe") return fail("Choose Yes, Maybe or No.");
 
-  const name = text(form, "name", 100);
-  if (!name) return fail("Enter your name so your host knows who replied.");
-
-  const email = optionalText(form, "email", 254)?.toLowerCase() ?? null;
-  if (email && !isEmail(email)) return fail("Check your email address, or leave it blank.");
-  const phone = optionalText(form, "phone", 32);
-  if (phone && !isPhone(phone)) return fail("Check your phone number, or leave it blank.");
+  const typedName = text(form, "name", 100).replace(/\s+/g, " ");
 
   const partySize =
     status === "no" ? 0 : event.allow_plus_ones ? integer(form, "party_size", 1, event.max_party_size, 1) : 1;
@@ -69,9 +63,9 @@ export async function submitRsvp(_prev: ActionResult | null, form: FormData): Pr
   let guestToken: string;
 
   if (existing) {
-    const patch: Record<string, unknown> = { name, status, party_size: partySize, answer, note, responded_at: now };
-    if (email) patch.email = email;
-    if (phone) patch.phone = phone;
+    // The host set this guest's name; it isn't changed from the reply form, so
+    // the reply is always recorded against the right person.
+    const patch = { status, party_size: partySize, answer, note, responded_at: now };
     const { error } = await admin.from("guests").update(patch).eq("id", existing.id).eq("event_id", event.id);
     if (error) {
       console.error("RSVP update failed", error);
@@ -82,15 +76,14 @@ export async function submitRsvp(_prev: ActionResult | null, form: FormData): Pr
     if (!event.open_link) {
       return fail("This invite is personal. Open the link your host sent you to reply.");
     }
+    if (!typedName) return fail("Enter your first and last name so your host knows who replied.");
     const { count } = await admin.from("guests").select("id", { count: "exact", head: true }).eq("event_id", event.id);
     if ((count ?? 0) >= MAX_GUESTS_PER_EVENT) return fail("This event's guest list is full. Contact your host.");
 
     guestToken = makeGuestToken();
     const { error } = await admin.from("guests").insert({
       event_id: event.id,
-      name,
-      email,
-      phone,
+      name: typedName,
       status,
       party_size: partySize,
       answer,

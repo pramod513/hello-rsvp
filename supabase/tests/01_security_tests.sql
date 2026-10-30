@@ -30,10 +30,18 @@ do $$ begin
   raise notice 'PASS: host_id defaults to auth.uid()';
 end $$;
 
-insert into public.guests (event_id, name, email, token)
-select id, 'Sofia Martinez', 'sofia@example.com', 'tok-sofia' from public.events where slug = 'priyas-30th-k7m2qp';
-insert into public.guests (event_id, name, phone)
-select id, 'Ravi Iyer', '+91 98450 12345' from public.events where slug = 'priyas-30th-k7m2qp';
+insert into public.guests (event_id, name, token)
+select id, 'Sofia Martinez', 'tok-sofia' from public.events where slug = 'priyas-30th-k7m2qp';
+insert into public.guests (event_id, name)
+select id, 'Ravi Iyer' from public.events where slug = 'priyas-30th-k7m2qp';
+
+do $$ begin
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'guests' and column_name in ('email', 'phone')) then
+    raise exception 'FAIL: guests still has contact columns';
+  end if;
+  raise notice 'PASS: guests table stores no phone numbers or email addresses';
+end $$;
 insert into public.gift_items (event_id, title, quantity)
 select id, 'Board game', 1 from public.events where slug = 'priyas-30th-k7m2qp';
 

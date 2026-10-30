@@ -56,42 +56,28 @@ export function normalizeUrl(value: string | null): string | null {
   }
 }
 
-export interface GuestInput {
-  name: string;
-  email: string | null;
-  phone: string | null;
-}
-
 /**
- * Parses a pasted guest list. One guest per line, with name, email and phone in
- * any order separated by commas, tabs or semicolons:
- *   Sofia Martinez, sofia@example.com, +1 312 555 0182
- *   Ravi Iyer; +91 98450 12345
+ * Parses a pasted guest list: one name per line. If a line also contains a
+ * phone number or email address (copied from a spreadsheet, say), that part is
+ * dropped so it is never sent to the server.
+ *   Sofia Martinez
+ *   Ravi Iyer, +91 98450 12345   ->  "Ravi Iyer"
  */
-export function parseGuestList(input: string): { guests: GuestInput[]; skipped: string[] } {
-  const guests: GuestInput[] = [];
-  const skipped: string[] = [];
+export function parseGuestList(input: string): { names: string[]; removedContactDetails: boolean } {
+  const names: string[] = [];
+  let removedContactDetails = false;
   for (const rawLine of input.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line) continue;
-    const parts = line
+    const parts = rawLine
       .split(/[,;\t]/)
       .map((p) => p.trim())
       .filter(Boolean);
-    let email: string | null = null;
-    let phone: string | null = null;
-    const nameParts: string[] = [];
+    const kept: string[] = [];
     for (const part of parts) {
-      if (!email && isEmail(part)) email = part.toLowerCase();
-      else if (!phone && isPhone(part)) phone = part;
-      else nameParts.push(part);
+      if (isEmail(part) || isPhone(part)) removedContactDetails = true;
+      else kept.push(part);
     }
-    const name = nameParts.join(" ").slice(0, 100);
-    if (!name) {
-      skipped.push(line);
-      continue;
-    }
-    guests.push({ name, email, phone });
+    const name = kept.join(" ").replace(/\s+/g, " ").slice(0, 100).trim();
+    if (name) names.push(name);
   }
-  return { guests, skipped };
+  return { names, removedContactDetails };
 }

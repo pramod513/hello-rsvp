@@ -2,7 +2,7 @@
 
 Free invitations and RSVP tracking for any event. Hosts design an invite, send it on WhatsApp, by text or by email, and see every reply in one place. Guests reply in one tap with no app or account.
 
-**Stack:** Next.js 16 (App Router) · React 19 · Supabase (Postgres, Auth, Storage) · Resend for email (optional) · plain CSS, no UI framework.
+**Stack:** Next.js 16 (App Router) · React 19 · Supabase (Postgres, Auth, Storage) · plain CSS, no UI framework.
 
 ## What's in version 1
 
@@ -10,19 +10,19 @@ Free invitations and RSVP tracking for any event. Hosts design an invite, send i
 |---|---|
 | Invite builder | 6 designs, photo upload (auto-resized), event type, date/time with time zone, place + map link, online link, message, live preview |
 | Guest RSVP page | Yes / Maybe / No, party size, host's custom question, note to host, change reply later, add to Google/Apple/Outlook calendar, link preview image for WhatsApp |
-| Host dashboard | Add guests one by one or paste a list, per-guest WhatsApp / text / email / copy link, "WhatsApp the next guest" queue, bulk email invites and reminders, editable messages, reply counts and filters, manual reply entry, CSV download, cancel or delete event |
+| Host dashboard | Add guests by first and last name (one at a time or a pasted list), per-guest WhatsApp / text / email / copy link, "send to the next guest" queue, reminders, editable messages, reply counts and filters, manual reply entry, CSV download, delete the whole guest list, cancel or delete event |
 | Gift list | Gifts, gift cards and "bring along" items, store links, quantities, suggestions per event type with Amazon search links by country, guests claim items (only the host sees who), host can clear claims |
 | Account | Email sign-in (link or 6-digit code), optional Google sign-in, delete account (needed for app stores) |
 | Site | Homepage, privacy policy, terms, sitemap, PWA manifest and icons |
 
-Sending is free: WhatsApp and texts open on the host's own phone with the message written; email goes through Resend's free tier if you set it up, otherwise the host's email app opens.
+**Privacy by design:** Hello RSVP stores guests' names and replies only, never phone numbers or email addresses. Every send button opens the host's own WhatsApp, Messages or email app with the invite written, and the host picks the contact there. Each guest gets a private link, so their reply is matched to their name automatically; on a private link the name can't be changed. Hosts can delete a guest, a guest list, an event or their account at any time. Sending costs nothing.
 
 ---
 
 ## 1. Create the Supabase project (database, sign-in, photo storage)
 
 1. Sign up at <https://supabase.com> and create a project (free tier is fine). Pick the region closest to most of your users.
-2. **SQL Editor → New query**: paste all of `supabase/migrations/20261030000000_init.sql` and run it. This creates the tables, security rules and the `invite-images` storage bucket.
+2. **SQL Editor → New query**: run each file in `supabase/migrations/` in order (`20261030000000_init.sql`, then `20261030200000_guests_names_only.sql`). This creates the tables, security rules and the `invite-images` storage bucket.
 3. **Project Settings → API Keys**: copy the **Project URL**, the **publishable** key (or legacy *anon* key) and the **secret** key (or legacy *service_role* key).
 4. **Authentication → URL Configuration**
    - Site URL: `http://localhost:3000` for now (change to your domain at launch).
@@ -36,7 +36,7 @@ Sending is free: WhatsApp and texts open on the host's own phone with the messag
    <p>If you didn't ask to sign in, you can ignore this email.</p>
    ```
 
-6. Supabase's built-in email sender is limited to a few emails per hour, which is fine for testing. Before launch, set up **Authentication → Emails → SMTP settings** with Resend (step 4 below) so sign-in emails aren't throttled.
+6. Supabase's built-in email sender is limited to a few emails per hour, which is fine for testing. Before launch, set up **Authentication → Emails → SMTP settings** with Resend (step 4 below) so other hosts can sign in.
 
 **Optional, Google sign-in:** Authentication → Sign In / Providers → Google, follow Supabase's guide to create the Google OAuth client, then set `NEXT_PUBLIC_ENABLE_GOOGLE_AUTH=true`.
 
@@ -63,14 +63,16 @@ Other scripts: `npm run build` (production build), `npm run typecheck`.
 
 **Custom domain:** buy the domain (Cloudflare Registrar, Porkbun and Namecheap are inexpensive), then Vercel → Project → Settings → Domains → add it and follow the DNS instructions. After it works, update `NEXT_PUBLIC_SITE_URL`, the Supabase **Site URL** and **Redirect URLs**, and redeploy.
 
-## 4. Optional: send emails from the app (Resend)
+## 4. Before launch: your own sender for sign-in emails
 
-1. Sign up at <https://resend.com> (free: 3,000 emails/month, 100/day).
-2. Add and verify your domain (a few DNS records).
-3. Create an API key and set `RESEND_API_KEY` and `EMAIL_FROM` (for example `Hello RSVP <invites@yourdomain.com>`).
-4. Reuse the same Resend account for Supabase sign-in emails: Supabase → Authentication → Emails → SMTP settings → host `smtp.resend.com`, port `465`, user `resend`, password = your API key.
+Supabase's built-in sender only delivers to members of your Supabase organization, 2 emails an hour, so other hosts can't sign in until you add your own.
 
-Without Resend, the email buttons open the host's own email app with the invite already written.
+1. Sign up at <https://resend.com> (free: 3,000 emails/month, 100/day) and verify your domain (a few DNS records).
+2. Create an API key.
+3. Supabase → Authentication → Emails → SMTP settings → host `smtp.resend.com`, port `465`, user `resend`, password = your API key.
+4. Then edit the Magic Link and Confirm signup templates as shown in step 1.5.
+
+Guest invites never go through this sender: hosts send them from their own apps.
 
 ## Environment variables
 
@@ -81,7 +83,6 @@ Without Resend, the email buttons open the host's own email app with the invite 
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes | Supabase publishable (or anon) key |
 | `SUPABASE_SECRET_KEY` | Yes | Supabase secret (or service_role) key. Server only. |
 | `NEXT_PUBLIC_ENABLE_GOOGLE_AUTH` | No | `true` shows "Continue with Google" |
-| `RESEND_API_KEY`, `EMAIL_FROM` | No | Send invite and reminder emails from the app |
 | `NEXT_PUBLIC_CONTACT_EMAIL` | No | Shown on the privacy and terms pages |
 
 ## How it's built
@@ -120,12 +121,13 @@ supabase/
 
 ### Database tests
 
-`supabase/tests` holds 19 checks for the schema: hosts can't see or change each other's data, signed-out visitors get nothing, uploads stay in the host's own folder, gifts can't be over-claimed, deletes cascade. They run against plain PostgreSQL 16 with small stand-ins for Supabase's `auth` and `storage` schemas:
+`supabase/tests` holds 20 checks for the schema: guests are names only, hosts can't see or change each other's data, signed-out visitors get nothing, uploads stay in the host's own folder, gifts can't be over-claimed, deletes cascade. They run against plain PostgreSQL 16 with small stand-ins for Supabase's `auth` and `storage` schemas:
 
 ```bash
 createdb rsvp_test
 psql -d rsvp_test -f supabase/tests/00_supabase_stubs.sql
 psql -d rsvp_test -f supabase/migrations/20261030000000_init.sql
+psql -d rsvp_test -f supabase/migrations/20261030200000_guests_names_only.sql
 psql -d rsvp_test -f supabase/tests/01_security_tests.sql   # ends with "ALL SQL TESTS PASSED"
 ```
 

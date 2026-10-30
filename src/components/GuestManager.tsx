@@ -3,10 +3,10 @@
 import { useMemo, useState, useTransition, type FormEvent } from "react";
 import {
   addGuests,
+  deleteAllGuests,
   deleteGuest,
   markInvited,
   saveMessages,
-  sendEmailInvites,
   updateGuest,
 } from "@/app/dashboard/actions";
 import { firstName, formatStamp, pluralize } from "@/lib/format";
@@ -16,7 +16,6 @@ import {
   DEFAULT_REMINDER_MESSAGE,
   fillMessage,
   inviteLink,
-  looksInternational,
   mailtoUrl,
   MESSAGE_PLACEHOLDERS,
   smsUrl,
@@ -73,13 +72,11 @@ export function GuestManager({
   event,
   guests,
   baseUrl,
-  emailEnabled,
   whenText,
 }: {
   event: ManagedEvent;
   guests: GuestRow[];
   baseUrl: string;
-  emailEnabled: boolean;
   whenText: string;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
@@ -112,11 +109,7 @@ export function GuestManager({
   );
 
   const notInvited = guests.filter((g) => g.status === "pending" && !g.invited_at);
-  const waiting = guests.filter((g) => g.status === "pending" && g.invited_at);
-  const nextWhatsApp = notInvited.find((g) => g.phone);
-  const whatsappLeft = notInvited.filter((g) => g.phone).length;
-  const emailInviteIds = notInvited.filter((g) => g.email).map((g) => g.id);
-  const emailReminderIds = waiting.filter((g) => g.email).map((g) => g.id);
+  const nextGuest = notInvited[0] ?? null;
 
   function kindFor(g: GuestRow): Kind {
     return g.invited_at && g.status === "pending" ? "reminder" : "invite";
@@ -138,42 +131,36 @@ export function GuestManager({
     });
   }
 
-  function record(ids: string[], channel: Channel, kind: Kind) {
+  function record(g: GuestRow, channel: Channel, kind: Kind) {
     startTransition(async () => {
-      const result = await markInvited(ids, channel, kind);
+      const result = await markInvited([g.id], channel, kind);
       if (!result.ok) setNotice(result);
     });
   }
 
-  function sendWhatsApp(g: GuestRow) {
+  // Each button opens the host's own app with the message written. The host
+  // picks the contact there, so Hello RSVP never sees a phone number or email.
+  function send(g: GuestRow, channel: "whatsapp" | "sms" | "email") {
     const kind = kindFor(g);
-    window.open(whatsappUrl(g.phone, messageFor(g, kind)), "_blank", "noopener,noreferrer");
-    record([g.id], "whatsapp", kind);
-  }
-
-  function sendText(g: GuestRow) {
-    const kind = kindFor(g);
-    window.location.href = smsUrl(g.phone, messageFor(g, kind));
-    record([g.id], "sms", kind);
-  }
-
-  function sendEmail(g: GuestRow) {
-    const kind = kindFor(g);
-    if (emailEnabled) {
-      run(() => sendEmailInvites(event.id, [g.id], kind));
-      return;
+    const message = messageFor(g, kind);
+    if (channel === "whatsapp") {
+      window.open(whatsappUrl(message), "_blank", "noopener,noreferrer");
+    } else if (channel === "sms") {
+      window.location.href = smsUrl(message);
+    } else {
+      const subject = kind === "reminder" ? `Reminder: ${event.title}` : `You're invited: ${event.title}`;
+      window.location.href = mailtoUrl(subject, message);
     }
-    const subject = kind === "reminder" ? `Reminder: ${event.title}` : `You're invited: ${event.title}`;
-    window.location.href = mailtoUrl(g.email, subject, messageFor(g, kind));
-    record([g.id], "email", kind);
+    setNotice({ ok: true, message: `Pick ${firstName(g.name)} in the app that opened, then send.` });
+    record(g, channel, kind);
   }
 
   async function copyLink(g: GuestRow) {
     const link = inviteLink(baseUrl, event.slug, g.token);
     try {
       await navigator.clipboard.writeText(link);
-      setNotice({ ok: true, message: `Copied ${firstName(g.name)}'s personal link.` });
-      if (!g.invited_at) record([g.id], "link", "invite");
+      setNotice({ ok: true, message: `Copied ${firstName(g.name)}'s private link.` });
+      if (!g.invited_at) record(g, "link", "invite");
     } catch {
       setNotice({ ok: false, error: `Copy didn't work in this browser. Here's the link: ${link}` });
     }
@@ -188,7 +175,7 @@ export function GuestManager({
     }
   }
 
-  const disabledReason = event.is_cancelled ? "This event is cancelled, so sending is turned off." : null;
+  const sendingOff = event.is_cancelled;
 
   return (
     <div className="manage-grid">
@@ -267,7 +254,7 @@ export function GuestManager({
             <div style={{ padding: "36px 20px", textAlign: "center" }}>
               <p style={{ fontWeight: 600 }}>No guests yet</p>
               <p className="muted" style={{ marginTop: 6 }}>
-                Add the people you&rsquo;re inviting, or share one invite link in a group chat.
+                Add the names of the people you&rsquo;re inviting, or share one invite link in a group chat.
               </p>
             </div>
           ) : visible.length === 0 ? (
@@ -277,21 +264,12 @@ export function GuestManager({
           ) : (
             visible.map((g) => {
               const status = statusLabel(g);
-              const kind = kindFor(g);
-              const remind = kind === "reminder";
+              const remind = kindFor(g) === "reminder";
               return (
                 <div className="guest-row" key={g.id}>
                   <div>
-                    <div className="guest-name">
-                      {g.name}
-                      {g.source === "link" ? <span className="faint small"> (replied from the shared link)</span> : null}
-                    </div>
-                    <div className="guest-contact">
-                      {[g.email, g.phone].filter(Boolean).join(", ") || "No contact details"}
-                      {g.phone && !looksInternational(g.phone) ? (
-                        <span style={{ color: "#7a5800" }}> Add the country code for WhatsApp.</span>
-                      ) : null}
-                    </div>
+                    <div className="guest-name">{g.name}</div>
+                    {g.source === "link" ? <div className="guest-contact">Replied from the shared link</div> : null}
                   </div>
                   <div className="guest-status">
                     <span className={`status status-${status.tone}`}>{status.text}</span>
@@ -333,22 +311,16 @@ export function GuestManager({
                       }}
                     />
                   ) : (
-                    <div className="guest-actions" aria-label={`Actions for ${g.name}`}>
-                      {g.phone ? (
-                        <>
-                          <button type="button" className="btn btn-sm" onClick={() => sendWhatsApp(g)} disabled={Boolean(disabledReason)}>
-                            <ChatIcon size={16} /> {remind ? "Remind on WhatsApp" : "WhatsApp"}
-                          </button>
-                          <button type="button" className="btn btn-sm" onClick={() => sendText(g)} disabled={Boolean(disabledReason)}>
-                            <TextIcon size={16} /> {remind ? "Remind by text" : "Text"}
-                          </button>
-                        </>
-                      ) : null}
-                      {g.email ? (
-                        <button type="button" className="btn btn-sm" onClick={() => sendEmail(g)} disabled={pending || Boolean(disabledReason)}>
-                          <MailIcon size={16} /> {remind ? "Remind by email" : "Email"}
-                        </button>
-                      ) : null}
+                    <div className="guest-actions" aria-label={`Send to ${g.name}`}>
+                      <button type="button" className="btn btn-sm" onClick={() => send(g, "whatsapp")} disabled={sendingOff}>
+                        <ChatIcon size={16} /> {remind ? "Remind on WhatsApp" : "WhatsApp"}
+                      </button>
+                      <button type="button" className="btn btn-sm" onClick={() => send(g, "sms")} disabled={sendingOff}>
+                        <TextIcon size={16} /> {remind ? "Remind by text" : "Text"}
+                      </button>
+                      <button type="button" className="btn btn-sm" onClick={() => send(g, "email")} disabled={sendingOff}>
+                        <MailIcon size={16} /> {remind ? "Remind by email" : "Email"}
+                      </button>
                       <button type="button" className="btn btn-sm btn-ghost" onClick={() => copyLink(g)}>
                         <LinkIcon size={16} /> Copy link
                       </button>
@@ -359,63 +331,45 @@ export function GuestManager({
             })
           )}
         </section>
+        <p className="hint" style={{ marginTop: 12 }}>
+          Each guest gets a private link. When they reply, it&rsquo;s saved against their name automatically.
+        </p>
       </div>
 
       <div className="side-stack">
-        {disabledReason ? (
+        {sendingOff ? (
           <p className="notice notice-warning" role="status">
-            {disabledReason}
+            This event is cancelled, so sending is turned off.
           </p>
         ) : null}
 
         <AddGuests eventId={event.id} pending={pending} run={run} />
 
-        <section className="panel" aria-labelledby="send-all-title">
-          <h2 id="send-all-title" className="panel-title">
-            Send to everyone
+        <section className="panel" aria-labelledby="send-next-title">
+          <h2 id="send-next-title" className="panel-title">
+            Send to the next guest
           </h2>
-          <p className="hint" style={{ marginBottom: 14 }}>
-            WhatsApp and texts open on your phone or computer with the message ready, one guest at a time.
-          </p>
-          <div className="stack-tight">
-            <button
-              type="button"
-              className="btn btn-block"
-              disabled={!nextWhatsApp || Boolean(disabledReason)}
-              onClick={() => nextWhatsApp && sendWhatsApp(nextWhatsApp)}
-            >
-              <ChatIcon size={18} />
-              {nextWhatsApp
-                ? `WhatsApp ${firstName(nextWhatsApp.name)} (${whatsappLeft} to go)`
-                : "Everyone with a phone is invited"}
-            </button>
-            {emailEnabled ? (
-              <>
-                <button
-                  type="button"
-                  className="btn btn-block"
-                  disabled={emailInviteIds.length === 0 || pending || Boolean(disabledReason)}
-                  onClick={() => run(() => sendEmailInvites(event.id, emailInviteIds, "invite"))}
-                >
-                  <MailIcon size={18} />
-                  {emailInviteIds.length ? `Email ${pluralize(emailInviteIds.length, "invite")}` : "No uninvited guests with email"}
+          {nextGuest ? (
+            <>
+              <p className="hint" style={{ marginBottom: 14 }}>
+                Next is <strong>{nextGuest.name}</strong> ({pluralize(notInvited.length, "guest")} not invited yet). Your app
+                opens with their private link in the message; pick them as the contact and send.
+              </p>
+              <div className="stack-tight">
+                <button type="button" className="btn btn-block" disabled={sendingOff} onClick={() => send(nextGuest, "whatsapp")}>
+                  <ChatIcon size={18} /> WhatsApp {firstName(nextGuest.name)}
                 </button>
-                <button
-                  type="button"
-                  className="btn btn-block"
-                  disabled={emailReminderIds.length === 0 || pending || Boolean(disabledReason)}
-                  onClick={() => run(() => sendEmailInvites(event.id, emailReminderIds, "reminder"))}
-                >
-                  <MailIcon size={18} />
-                  {emailReminderIds.length
-                    ? `Email ${pluralize(emailReminderIds.length, "reminder")} to people who haven't replied`
-                    : "No one to remind by email"}
+                <button type="button" className="btn btn-block" disabled={sendingOff} onClick={() => send(nextGuest, "sms")}>
+                  <TextIcon size={18} /> Text {firstName(nextGuest.name)}
                 </button>
-              </>
-            ) : (
-              <p className="hint">Email buttons open your own email app with the invite written for you.</p>
-            )}
-          </div>
+                <button type="button" className="btn btn-block" disabled={sendingOff} onClick={() => send(nextGuest, "email")}>
+                  <MailIcon size={18} /> Email {firstName(nextGuest.name)}
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="hint">{guests.length ? "Everyone on your list has been invited." : "Add guests to start sending."}</p>
+          )}
         </section>
 
         <section className="panel" aria-labelledby="group-link-title">
@@ -425,7 +379,7 @@ export function GuestManager({
           {event.open_link ? (
             <>
               <p className="hint" style={{ marginBottom: 12 }}>
-                Anyone with this link can reply and is added to your list automatically.
+                Anyone with this link can reply. They type their name, and it&rsquo;s added to your list.
               </p>
               <div className="copy-field">
                 <label className="sr-only" htmlFor="group-link">
@@ -439,7 +393,7 @@ export function GuestManager({
               <a
                 className="btn btn-block"
                 style={{ marginTop: 10 }}
-                href={whatsappUrl(null, fillMessage(DEFAULT_GROUP_MESSAGE, { event: event.title, date: whenText, link: groupLink }))}
+                href={whatsappUrl(fillMessage(DEFAULT_GROUP_MESSAGE, { event: event.title, date: whenText, link: groupLink }))}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -461,6 +415,29 @@ export function GuestManager({
           pending={pending}
           run={run}
         />
+
+        {guests.length > 0 ? (
+          <section className="panel" aria-labelledby="clear-list-title">
+            <h2 id="clear-list-title" className="panel-title">
+              Delete the guest list
+            </h2>
+            <p className="hint" style={{ marginBottom: 12 }}>
+              Removes every name and reply for this event. Their links stop working. The invite itself stays.
+            </p>
+            <button
+              type="button"
+              className="btn btn-danger btn-block"
+              disabled={pending}
+              onClick={() => {
+                if (window.confirm(`Delete all ${guests.length} guests and their replies? This can't be undone.`)) {
+                  run(() => deleteAllGuests(event.id));
+                }
+              }}
+            >
+              Delete all {pluralize(guests.length, "guest")}
+            </button>
+          </section>
+        ) : null}
       </div>
     </div>
   );
@@ -475,25 +452,24 @@ function AddGuests({
   pending: boolean;
   run: (task: () => Promise<ActionResult>) => void;
 }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [first, setFirst] = useState("");
+  const [last, setLast] = useState("");
   const [list, setList] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
   function addOne(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!name.trim()) {
-      setLocalError("Enter the guest's name.");
+    const name = `${first.trim()} ${last.trim()}`.trim();
+    if (!first.trim()) {
+      setLocalError("Enter the guest's first name.");
       return;
     }
     setLocalError(null);
     run(async () => {
-      const r = await addGuests(eventId, [{ name, email: email || null, phone: phone || null }]);
+      const r = await addGuests(eventId, [name]);
       if (r.ok) {
-        setName("");
-        setEmail("");
-        setPhone("");
+        setFirst("");
+        setLast("");
       }
       return r;
     });
@@ -501,18 +477,18 @@ function AddGuests({
 
   function addMany(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const { guests, skipped } = parseGuestList(list);
-    if (guests.length === 0) {
-      setLocalError("Put one guest on each line, starting with their name.");
+    const { names, removedContactDetails } = parseGuestList(list);
+    if (names.length === 0) {
+      setLocalError("Put one name on each line.");
       return;
     }
     setLocalError(null);
     run(async () => {
-      const r = await addGuests(eventId, guests);
+      const r = await addGuests(eventId, names);
       if (r.ok) {
-        setList(skipped.join("\n"));
-        if (skipped.length) {
-          return { ok: true, message: `${r.message} ${skipped.length} lines had no name and were left in the box.` };
+        setList("");
+        if (removedContactDetails) {
+          return { ok: true, message: `${r.message} Phone numbers and emails in the list were left out; only names are saved.` };
         }
       }
       return r;
@@ -524,33 +500,21 @@ function AddGuests({
       <h2 id="add-guests-title" className="panel-title">
         Add guests
       </h2>
-      <form onSubmit={addOne} noValidate style={{ marginTop: 12 }}>
-        <div className="field">
-          <label className="label" htmlFor="guest-name">
-            Name
-          </label>
-          <input id="guest-name" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} autoComplete="off" />
-        </div>
-        <div className="field">
-          <label className="label" htmlFor="guest-phone">
-            Mobile number <span className="label-optional">(for WhatsApp or text)</span>
-          </label>
-          <input
-            id="guest-phone"
-            className="input"
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+1 312 555 0182"
-            autoComplete="off"
-          />
-          <p className="hint">Start with + and the country code.</p>
-        </div>
-        <div className="field">
-          <label className="label" htmlFor="guest-email">
-            Email <span className="label-optional">(optional)</span>
-          </label>
-          <input id="guest-email" className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" />
+      <p className="hint">Only names are saved. You choose the contact in WhatsApp, Messages or email when you send.</p>
+      <form onSubmit={addOne} noValidate style={{ marginTop: 14 }}>
+        <div className="field-row">
+          <div className="field">
+            <label className="label" htmlFor="guest-first">
+              First name
+            </label>
+            <input id="guest-first" className="input" value={first} onChange={(e) => setFirst(e.target.value)} maxLength={50} autoComplete="off" />
+          </div>
+          <div className="field">
+            <label className="label" htmlFor="guest-last">
+              Last name <span className="label-optional">(optional)</span>
+            </label>
+            <input id="guest-last" className="input" value={last} onChange={(e) => setLast(e.target.value)} maxLength={50} autoComplete="off" />
+          </div>
         </div>
         {localError ? (
           <p className="notice notice-error" role="alert" style={{ marginTop: 12 }}>
@@ -563,10 +527,10 @@ function AddGuests({
       </form>
 
       <details className="disclosure" style={{ marginTop: 18 }}>
-        <summary>Paste a list instead</summary>
+        <summary>Paste a list of names</summary>
         <form onSubmit={addMany} noValidate style={{ marginTop: 12 }}>
           <label className="label" htmlFor="guest-list">
-            One guest per line
+            One name per line
           </label>
           <textarea
             id="guest-list"
@@ -574,11 +538,8 @@ function AddGuests({
             style={{ minHeight: 140, marginTop: 6 }}
             value={list}
             onChange={(e) => setList(e.target.value)}
-            placeholder={"Sofia Martinez, sofia@example.com\nRavi Iyer, +91 98450 12345\nTom Becker"}
+            placeholder={"Sofia Martinez\nRavi Iyer\nTom Becker"}
           />
-          <p className="hint" style={{ marginTop: 6 }}>
-            Name first, then an email or phone number if you have one, separated by commas.
-          </p>
           <button type="submit" className="btn btn-block" style={{ marginTop: 12 }} disabled={pending}>
             Add these guests
           </button>
@@ -597,13 +558,11 @@ function GuestEditor({
 }: {
   guest: GuestRow;
   pending: boolean;
-  onSave: (input: { name: string; email: string | null; phone: string | null; status: RsvpStatus; party_size: number }) => void;
+  onSave: (input: { name: string; status: RsvpStatus; party_size: number }) => void;
   onCancel: () => void;
   onDelete: () => void;
 }) {
   const [name, setName] = useState(guest.name);
-  const [email, setEmail] = useState(guest.email ?? "");
-  const [phone, setPhone] = useState(guest.phone ?? "");
   const [status, setStatus] = useState<RsvpStatus>(guest.status);
   const [party, setParty] = useState(Math.max(1, guest.party_size));
   const idp = `edit-${guest.id}`;
@@ -614,7 +573,7 @@ function GuestEditor({
       noValidate
       onSubmit={(e) => {
         e.preventDefault();
-        onSave({ name, email: email || null, phone: phone || null, status, party_size: party });
+        onSave({ name, status, party_size: party });
       }}
     >
       <div className="field-row">
@@ -622,22 +581,8 @@ function GuestEditor({
           <label className="label" htmlFor={`${idp}-name`}>
             Name
           </label>
-          <input id={`${idp}-name`} className="input" value={name} onChange={(e) => setName(e.target.value)} />
+          <input id={`${idp}-name`} className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />
         </div>
-        <div className="field">
-          <label className="label" htmlFor={`${idp}-phone`}>
-            Mobile number
-          </label>
-          <input id={`${idp}-phone`} className="input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        </div>
-        <div className="field">
-          <label className="label" htmlFor={`${idp}-email`}>
-            Email
-          </label>
-          <input id={`${idp}-email`} className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </div>
-      </div>
-      <div className="field-row">
         <div className="field">
           <label className="label" htmlFor={`${idp}-status`}>
             Reply
@@ -648,7 +593,6 @@ function GuestEditor({
             <option value="maybe">Maybe</option>
             <option value="no">Can&apos;t come</option>
           </select>
-          <p className="hint">Set this if they answered you in person or in a chat.</p>
         </div>
         {status !== "no" ? (
           <div className="field">
@@ -667,6 +611,9 @@ function GuestEditor({
           </div>
         ) : null}
       </div>
+      <p className="hint" style={{ marginTop: 8 }}>
+        Set the reply yourself if they answered you in person or in a chat.
+      </p>
       <div className="row" style={{ marginTop: 16 }}>
         <button type="submit" className="btn btn-primary btn-sm" disabled={pending}>
           Save guest

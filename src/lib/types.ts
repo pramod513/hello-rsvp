@@ -78,8 +78,6 @@ export interface GuestRow {
   id: string;
   event_id: string;
   name: string;
-  email: string | null;
-  phone: string | null;
   token: string;
   status: RsvpStatus;
   party_size: number;
