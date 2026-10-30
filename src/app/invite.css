@@ -1,0 +1,293 @@
+/* Invite card templates. Every template shares the same markup (InviteCard.tsx);
+   sizes use container units so the card scales from a 320px preview to a full page. */
+
+.invite-frame {
+  container-type: inline-size;
+  width: 100%;
+}
+
+.invite {
+  --inv-bg: #ffffff;
+  --inv-ink: #12302f;
+  --inv-soft: #46605f;
+  --inv-accent: #0f6e6a;
+  --inv-title-font: var(--font-display);
+  --inv-body-font: var(--font-body);
+  position: relative;
+  background: var(--inv-bg);
+  color: var(--inv-ink);
+  border-radius: 14px;
+  overflow: hidden;
+  font-family: var(--inv-body-font);
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.invite-cover img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+}
+
+.invite-body {
+  position: relative;
+  padding: clamp(28px, 10cqi, 56px) clamp(22px, 8cqi, 48px);
+  display: grid;
+  justify-items: center;
+  gap: 0;
+}
+
+.invite-cancelled {
+  margin-bottom: 14px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #c33a4e;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.invite-intro {
+  font-size: clamp(14px, 4cqi, 17px);
+  color: var(--inv-soft);
+  letter-spacing: 0.02em;
+}
+
+.invite-title {
+  margin: 8px 0 0;
+  font-family: var(--inv-title-font);
+  font-weight: 400;
+  font-size: clamp(30px, 10cqi, 56px);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+  color: var(--inv-title-color, var(--inv-ink));
+}
+
+.invite-host {
+  margin-top: 12px;
+  font-size: clamp(14px, 4cqi, 17px);
+  color: var(--inv-soft);
+}
+
+.invite-ornament {
+  width: 72px;
+  height: 14px;
+  margin: clamp(18px, 6cqi, 28px) 0;
+  background:
+    linear-gradient(var(--inv-accent), var(--inv-accent)) left center / 26px 1px no-repeat,
+    linear-gradient(var(--inv-accent), var(--inv-accent)) right center / 26px 1px no-repeat;
+  position: relative;
+}
+
+.invite-ornament::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  background: var(--inv-accent);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.invite-date {
+  font-weight: 700;
+  font-size: clamp(16px, 4.6cqi, 20px);
+}
+
+.invite-time {
+  margin-top: 2px;
+  font-size: clamp(15px, 4.2cqi, 18px);
+}
+
+.invite-place {
+  margin-top: 14px;
+  font-size: clamp(15px, 4.2cqi, 18px);
+  font-weight: 600;
+}
+
+.invite-place span {
+  display: block;
+  font-weight: 400;
+  color: var(--inv-soft);
+  font-size: 0.92em;
+}
+
+.invite-message {
+  margin-top: clamp(18px, 6cqi, 26px);
+  font-size: clamp(15px, 4.2cqi, 17px);
+  line-height: 1.6;
+  color: var(--inv-soft);
+  white-space: pre-line;
+  max-width: 36em;
+}
+
+/* Classic: framed, engraved-card feel */
+.invite--classic .invite-body::before {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border: 1px solid var(--inv-accent);
+  outline: 1px solid var(--inv-accent);
+  outline-offset: -5px;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+/* Marigold: festive garland across the top */
+.invite--marigold {
+  --inv-bg: #fff6d8;
+  --inv-ink: #5e1a24;
+  --inv-soft: #7d4048;
+  --inv-accent: #e08a00;
+}
+
+.invite--marigold .invite-body {
+  padding-top: clamp(44px, 14cqi, 72px);
+}
+
+.invite--marigold .invite-body::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 30px;
+  background:
+    radial-gradient(circle at 50% 0, #f4b400 0 11px, transparent 12px) 0 0 / 34px 22px repeat-x,
+    radial-gradient(circle at 50% 0, #ef7d00 0 8px, transparent 9px) 17px 8px / 34px 22px repeat-x;
+}
+
+.invite--marigold .invite-body::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 8px;
+  background: repeating-linear-gradient(90deg, #f4b400 0 18px, #ef7d00 18px 36px, #c2185b 36px 42px);
+}
+
+/* Midnight: navy and gold */
+.invite--midnight {
+  --inv-bg: #16213f;
+  --inv-ink: #f3e6c4;
+  --inv-soft: #c9bfa6;
+  --inv-accent: #d4af5a;
+  --inv-title-color: #e6c77d;
+}
+
+.invite--midnight .invite-body::before {
+  content: "";
+  position: absolute;
+  inset: 14px;
+  border: 1px solid rgba(212, 175, 90, 0.7);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+/* Confetti: bright and playful */
+.invite--confetti {
+  --inv-bg: #ffffff;
+  --inv-ink: #1d1a3a;
+  --inv-soft: #4b4770;
+  --inv-accent: #ff5c8a;
+  --inv-title-font: var(--font-body);
+  background-color: #fff;
+  background-image:
+    radial-gradient(circle, #ff5c8a 0 5px, transparent 6px),
+    radial-gradient(circle, #ffc93c 0 4px, transparent 5px),
+    radial-gradient(circle, #3fa7ff 0 4px, transparent 5px),
+    radial-gradient(circle, #2ec4a6 0 3px, transparent 4px);
+  background-size: 97px 83px, 71px 109px, 113px 67px, 59px 89px;
+  background-position: 7px 11px, 31px 47px, 53px 5px, 19px 29px;
+}
+
+.invite--confetti .invite-body {
+  margin: clamp(14px, 5cqi, 24px);
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 12px;
+}
+
+.invite--confetti .invite-title {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.invite--confetti .invite-ornament {
+  width: 64px;
+  height: 6px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #ff5c8a 0 25%, #ffc93c 25% 50%, #3fa7ff 50% 75%, #2ec4a6 75%);
+}
+
+.invite--confetti .invite-ornament::after {
+  display: none;
+}
+
+/* Garden: sage with a botanical sprig */
+.invite--garden {
+  --inv-bg: #e6eee2;
+  --inv-ink: #23412f;
+  --inv-soft: #4d6655;
+  --inv-accent: #7a9a6c;
+}
+
+.invite--garden .invite-ornament {
+  width: 64px;
+  height: 22px;
+  background: linear-gradient(var(--inv-accent), var(--inv-accent)) center / 56px 1.5px no-repeat;
+}
+
+.invite--garden .invite-ornament::before,
+.invite--garden .invite-ornament::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 7px;
+  background: var(--inv-accent);
+  border-radius: 100% 0;
+}
+
+.invite--garden .invite-ornament::before {
+  left: 14px;
+  transform: translateY(-110%) rotate(-25deg);
+}
+
+.invite--garden .invite-ornament::after {
+  left: auto;
+  right: 14px;
+  transform: translateY(10%) rotate(-25deg);
+}
+
+/* Minimal: clean type, left aligned */
+.invite--minimal {
+  --inv-bg: #ffffff;
+  --inv-ink: #141414;
+  --inv-soft: #555555;
+  --inv-accent: #141414;
+  --inv-title-font: var(--font-body);
+  text-align: left;
+}
+
+.invite--minimal .invite-body {
+  justify-items: start;
+}
+
+.invite--minimal .invite-title {
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  font-size: clamp(32px, 11cqi, 60px);
+}
+
+.invite--minimal .invite-ornament {
+  width: 48px;
+  height: 3px;
+  background: var(--inv-accent);
+}
+
+.invite--minimal .invite-ornament::after {
+  display: none;
+}
