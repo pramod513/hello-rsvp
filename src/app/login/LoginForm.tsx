@@ -84,11 +84,12 @@ export function LoginForm({ next, googleEnabled }: { next: string; googleEnabled
     return (
       <form onSubmit={verifyCode} noValidate>
         <p className="notice notice-success" role="status">
-          We sent a sign-in email to <strong>{email}</strong>. Open the link in it, or type the code below.
+          We sent a sign-in email to <strong>{email}</strong>. Open the link in it on this device to sign in. It can take
+          a minute to arrive, so check your spam folder too.
         </p>
         <div className="field" style={{ marginTop: 20 }}>
           <label className="label" htmlFor="code">
-            Code from the email
+            Or enter the code, if your email has one
           </label>
           <input
             id="code"
@@ -99,7 +100,6 @@ export function LoginForm({ next, googleEnabled }: { next: string; googleEnabled
             onChange={(e) => setCode(e.target.value)}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? "login-error" : undefined}
-            autoFocus
           />
         </div>
         {error ? (
