@@ -22,7 +22,7 @@ export function SiteHeader() {
   );
 }
 
-export function SiteFooter() {
+export function SiteFooter({ signedIn = false }: { signedIn?: boolean }) {
   const year = new Date().getFullYear();
   return (
     <footer className="site-footer">
@@ -31,7 +31,7 @@ export function SiteFooter() {
         <nav aria-label="Footer">
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
-          <Link href="/login">Sign in</Link>
+          {signedIn ? null : <Link href="/login">Sign in</Link>}
         </nav>
       </div>
     </footer>

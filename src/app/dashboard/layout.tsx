@@ -22,13 +22,13 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         <div className="container site-header-inner">
           <Logo href="/dashboard" />
           <nav className="site-nav" aria-label="Account">
-            <Link href="/dashboard" className="btn btn-ghost btn-sm">
+            <Link href="/dashboard" className="btn btn-ghost btn-sm hide-sm">
               Your events
             </Link>
-            <Link href="/dashboard/account" className="btn btn-ghost btn-sm hide-sm">
+            <Link href="/dashboard/account" className="btn btn-ghost btn-sm">
               Account
             </Link>
-            <form action={signOut}>
+            <form action={signOut} className="hide-sm">
               <button type="submit" className="btn btn-ghost btn-sm">
                 Sign out
               </button>
@@ -39,7 +39,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       <main id="main" className="app-main">
         <div className="container">{children}</div>
       </main>
-      <SiteFooter />
+      <SiteFooter signedIn />
     </div>
   );
 }

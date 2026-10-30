@@ -383,7 +383,7 @@ export function EventForm({
               </span>
             </label>
             {values.allow_plus_ones ? (
-              <div className="field" style={{ margin: "12px 0 0 30px", maxWidth: 220 }}>
+              <div className="field" style={{ margin: "12px 0 18px 30px", maxWidth: 280 }}>
                 <label className="label" htmlFor="max_party_size">
                   Largest party, including the guest
                 </label>

@@ -176,7 +176,7 @@ export default async function InvitePage({ params, searchParams }: { params: Par
             <p className="muted" style={{ marginBottom: 18 }}>
               {guest.status === "pending"
                 ? `Hi ${firstName(guest.name)}! Let ${event.host_name || "your host"} know if you can make it.`
-                : `Hi ${firstName(guest.name)}. You replied ${replySummary(guest)}. You can change it below.`}
+                : `Hi ${firstName(guest.name)}. You said ${replySummary(guest)}. You can change your answer below.`}
             </p>
           ) : (
             <p className="muted" style={{ marginBottom: 18 }}>

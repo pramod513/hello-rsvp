@@ -51,7 +51,7 @@ export function RsvpForm({
             [
               ["yes", "Yes, I'll be there"],
               ["maybe", "Maybe"],
-              ["no", "Sorry, can't make it"],
+              ["no", "Can't make it"],
             ] as const
           ).map(([value, label]) => (
             <label key={value} className={`reply-choice reply-choice-${value}`}>

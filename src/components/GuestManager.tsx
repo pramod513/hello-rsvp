@@ -278,7 +278,7 @@ export function GuestManager({
             visible.map((g) => {
               const status = statusLabel(g);
               const kind = kindFor(g);
-              const verb = kind === "reminder" ? "Remind" : "Send";
+              const remind = kind === "reminder";
               return (
                 <div className="guest-row" key={g.id}>
                   <div>
@@ -295,6 +295,11 @@ export function GuestManager({
                   </div>
                   <div className="guest-status">
                     <span className={`status status-${status.tone}`}>{status.text}</span>
+                    {editingId !== g.id ? (
+                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditingId(g.id)} aria-label={`Edit ${g.name}`}>
+                        Edit
+                      </button>
+                    ) : null}
                   </div>
 
                   {g.answer || g.note ? (
@@ -332,23 +337,20 @@ export function GuestManager({
                       {g.phone ? (
                         <>
                           <button type="button" className="btn btn-sm" onClick={() => sendWhatsApp(g)} disabled={Boolean(disabledReason)}>
-                            <ChatIcon size={16} /> {verb} on WhatsApp
+                            <ChatIcon size={16} /> {remind ? "Remind on WhatsApp" : "WhatsApp"}
                           </button>
                           <button type="button" className="btn btn-sm" onClick={() => sendText(g)} disabled={Boolean(disabledReason)}>
-                            <TextIcon size={16} /> {verb} a text
+                            <TextIcon size={16} /> {remind ? "Remind by text" : "Text"}
                           </button>
                         </>
                       ) : null}
                       {g.email ? (
                         <button type="button" className="btn btn-sm" onClick={() => sendEmail(g)} disabled={pending || Boolean(disabledReason)}>
-                          <MailIcon size={16} /> {verb} an email
+                          <MailIcon size={16} /> {remind ? "Remind by email" : "Email"}
                         </button>
                       ) : null}
                       <button type="button" className="btn btn-sm btn-ghost" onClick={() => copyLink(g)}>
                         <LinkIcon size={16} /> Copy link
-                      </button>
-                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditingId(g.id)}>
-                        Edit
                       </button>
                     </div>
                   )}
